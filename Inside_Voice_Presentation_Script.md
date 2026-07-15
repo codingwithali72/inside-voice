@@ -1,12 +1,14 @@
-# Inside Voice: Master Presentation Script
+# Inside Voice: Step-by-Step Presentation Script
 
-*Instructions: This script is designed for your 100-person audience. It is written to be delivered exactly as you click through the application. Pause where indicated, click the UI elements to show the extra information, and let the animations do the heavy lifting.*
+*Instructions: This is your exact cheat sheet. Do not change the words. Just follow the visual cues on the screen (the "WHAT YOU DO" section) and say exactly what is written in the "WHAT YOU SAY" section for every single stage.*
 
 ---
 
-## 0. Introduction (Home Screen)
-**[Action: Start on the Home Page with the pulsing microphone]**
+## START: The Home Screen
+**WHAT YOU DO:** 
+Stand at the center of the stage. The screen behind you shows the "Inside Voice" title and the pulsing microphone. Do not click anything yet.
 
+**WHAT YOU SAY:**
 "Good morning, everyone. Thank you for being here.
 
 Right now, as I am speaking to you, your brains are doing something incredibly complex, yet entirely effortless. You are capturing soundwaves traveling through the air, processing their frequencies, recognizing patterns, and instantly turning them into words and meaning. 
@@ -15,141 +17,181 @@ But what happens when you talk to Siri, Google Assistant, or ChatGPT? How does a
 
 Today, I’m not just going to tell you how it works—I’m going to show you. Welcome to **Inside Voice**. Over the next few minutes, we are going to travel inside the computer. We are going to follow a single spoken sentence from a raw physical vibration in the air, through the exact scientific pipeline used today, all the way to recognized text."
 
-**[Action: Click "Start Journey"]**
+**WHAT YOU DO:**
+Click **"Start Journey"**.
 
 ---
 
-## Stage 1: Capture Voice
+## STAGE 1: Capturing Your Voice
+**WHAT YOU DO:** 
+The screen shows Stage 1. 
+
+**WHAT YOU SAY:**
 "It all begins right here: capturing the voice. When we speak, our vocal cords push the air, creating pressure waves. A microphone captures those physical vibrations and turns them into an electrical signal. 
 
 I’m going to record a quick phrase right now to use as our example."
 
-**[Action: Click 'Start Recording'. Say clearly: "Hello everyone, welcome to the presentation." Click 'Stop Recording']**
+**WHAT YOU DO:**
+Click **"Start Recording"**. Say clearly into the mic: *"Hello everyone, welcome to the presentation."* Then click **"Stop Recording"**.
 
+**WHAT YOU SAY:**
 "As you can see on the screen, that blue wave was the raw electrical signal of my voice as I was speaking."
 
-**[Action: Click 'Continue Journey']**
+**WHAT YOU DO:**
+Click **"Continue Journey"**.
 
 ---
 
-## Stage 2: Digital Audio
+## STAGE 2: Digital Audio (PCM)
+**WHAT YOU DO:** 
+Let the smooth analog wave animate into digital dots.
+
+**WHAT YOU SAY:**
 "But here is the first problem: Computers do not understand continuous waves. They only understand 1s and 0s. 
 
-To fix this, the computer rapidly 'samples' the wave. It takes a snapshot of the wave's height usually 16,000 times every single second."
+To fix this, the computer rapidly 'samples' the wave. It takes a snapshot of the wave's height usually 16,000 times every single second.
 
-**[Action: Wait for the analog wave to animate into digital dots]**
+Watch the animation. See how the smooth line breaks down into thousands of tiny, discrete digital points? This process is called Pulse Code Modulation, or PCM audio. We have officially digitized my voice."
 
-"Watch the animation. See how the smooth line breaks down into thousands of tiny, discrete digital points? This process is called Pulse Code Modulation, or PCM audio. We have officially digitized my voice."
-
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Explore Time Domain"**.
 
 ---
 
-## Stage 3: Time Domain
-"Now we have our digital audio, and we can visualize it in what engineers call the **Time Domain**. Watch as my recorded sentence is mapped out."
+## STAGE 3: Time Domain (Waveform)
+**WHAT YOU DO:** 
+Let the waveform draw itself. 
 
-**[Action: Let the waveform draw itself. Hover over a few peaks with your mouse to show the tooltip]**
+**WHAT YOU SAY:**
+"Now we have our digital audio, and we can visualize it in what engineers call the **Time Domain**. 
 
-"If you look at the graph, the horizontal axis is time, and the vertical axis is amplitude—or loudness. Large spikes mean I was speaking loudly; the flat areas are silence between words. 
+If you look at the graph, the horizontal axis is time, and the vertical axis is amplitude—or loudness. Large spikes mean I was speaking loudly; the flat areas are silence between words. 
 
 This view is incredibly useful."
 
-**[Action: Click 'Why is this useful?']**
+**WHAT YOU DO:**
+Click **"Why is this useful?"**
 
-"As you can see here, audio engineers use this for podcast editing, monitoring recording volume, and basic signal analysis. But for an AI trying to recognize words? The Time Domain is actually terrible. Time tells us *when* a sound happened, but it doesn't tell us *what* the sound actually is."
+**WHAT YOU SAY:**
+"Audio engineers use this for podcast editing, monitoring recording volume, and basic signal analysis. But for an AI trying to recognize words? The Time Domain is actually terrible. Time tells us *when* a sound happened, but it doesn't tell us *what* the sound actually is."
 
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Enter Frequency Domain"**.
 
 ---
 
-## Stage 4: Frequency Domain
+## STAGE 4: Frequency Domain (Pitch)
+**WHAT YOU DO:** 
+Let the bar chart appear. Hover your mouse over the tallest Cyan peak.
+
+**WHAT YOU SAY:**
 "To figure out *what* the sound is, we apply a mathematical process called the Fourier Transform to flip our perspective. We stop looking at Time, and we start looking at Pitch. 
 
-Welcome to the **Frequency Domain**."
+Welcome to the **Frequency Domain**. 
 
-**[Action: Hover over the tallest peak (the cyan one)]**
+Instead of amplitude over time, we now see amplitude over frequency. The tallest peak you see here is the **Fundamental Frequency**—this is the core pitch of my voice. If I had a deep voice, this peak would be further left; if I had a high voice, it would be further right."
 
-"Instead of amplitude over time, we now see amplitude over frequency. The tallest peak you see here is the **Fundamental Frequency**—this is the core pitch of my voice. If I had a deep voice, this peak would be further left; if I had a high voice, it would be further right."
+**WHAT YOU DO:**
+Hover your mouse over the smaller Orange peaks.
 
-**[Action: Hover over the smaller orange peaks]**
+**WHAT YOU SAY:**
+"These smaller peaks are **Harmonics**. Harmonics give my voice its unique sound. Every vowel you speak—whether it's an 'Ahh' or an 'Eee'—creates a completely distinct pattern of these harmonic peaks. That is how the computer tells words apart."
 
-"These smaller peaks are **Harmonics**. Harmonics give my voice its unique timbre. Every vowel you speak—whether it's an 'Ahh' or an 'Eee'—creates a completely distinct pattern of these harmonic peaks. That is how the computer tells words apart."
-
-**[Action: Click 'Why Frequency Domain?']**
-
-"Engineers use this exact view for pitch detection in music, noise cancellation—like filtering out the hum of an air conditioner—and vowel recognition."
-
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Why is this useful?"**, read the popup silently, then click **"Slice into Frames"**.
 
 ---
 
-## Stage 5: Frame Splitting
+## STAGE 5: Frame Splitting
+**WHAT YOU DO:** 
+Let the animation split the waveform and zoom into a single 25ms frame.
+
+**WHAT YOU SAY:**
 "But speech is dynamic; it is constantly changing. If we analyze an entire sentence at once, all the frequencies blur together into a mess. 
 
-Instead, the computer slices the audio into tiny, overlapping frames."
+Instead, the computer slices the audio into tiny, overlapping frames. It cuts the audio into windows of exactly 25 milliseconds each. 
 
-**[Action: Let the animation split the waveform and zoom into a 25ms frame]**
+Why 25 milliseconds? Because it is short enough that the sound of my voice remains mathematically constant, but long enough to extract meaningful frequency data."
 
-"It cuts the audio into windows of about 25 milliseconds each. Why 25 milliseconds? Because it is short enough that the sound of my voice remains mathematically constant, but long enough to extract meaningful frequency data."
-
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Apply STFT"**.
 
 ---
 
-## Stage 6: STFT (Short-Time Fourier Transform)
+## STAGE 6: STFT
+**WHAT YOU DO:** 
+Wait for the line to connect the Time frame to the Frequency peaks.
+
+**WHAT YOU SAY:**
 "Next, the computer takes each one of those tiny 25-millisecond frames, and applies the Fourier Transform we just talked about. This process is called the Short-Time Fourier Transform.
 
 It asks a simple question of every single frame: *'Exactly which frequencies are present in this tiny slice of time?'* 
 
 Watch the animation. It extracts the frequency data, frame by frame, creating a sequence of spectrums."
 
-**[Action: Wait for the line to connect the Time frame to the Frequency peaks]**
-
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Generate Spectrogram"**.
 
 ---
 
-## Stage 7: Log-Mel Spectrogram
-"When we stitch all those individual frequency frames back together over time, we get this: The **Log-Mel Spectrogram**."
+## STAGE 7: Log-Mel Spectrogram
+**WHAT YOU DO:** 
+Let the colorful spectrogram scroll onto the screen.
 
-**[Action: Let the spectrogram scroll on screen]**
+**WHAT YOU SAY:**
+"When we stitch all those individual frequency frames back together over time, we get this: The **Log-Mel Spectrogram**.
 
-"This is arguably the most important preprocessing step in all of modern AI speech recognition. We map time on the horizontal axis and frequency on the vertical axis. The color brightness shows you the loudness. 
+This is arguably the most important step in all of modern AI speech recognition. We map time on the horizontal axis and frequency on the vertical axis. The color brightness shows you the loudness. 
 
 But notice it says 'Log-Mel'. We actually scale the frequencies mathematically to match human hearing. Humans are much better at hearing differences in low pitches than high pitches, so we warp the image to focus on what matters most. The 'Log' part means we use a logarithmic scale—decibels—to map loudness, exactly how our ears work.
 
 To an AI, this isn't just a graph—it's an image. We have successfully turned sound into a picture."
 
-**[Action: Click 'Learn More' to quickly show the axis breakdown, then click 'Continue']**
+**WHAT YOU DO:**
+Click **"Feed to AI Model"**.
 
 ---
 
-## Stage 8: AI Model
+## STAGE 8: AI Model (Transformer)
+**WHAT YOU DO:** 
+Let the scanner animation play over the spectrogram.
+
+**WHAT YOU SAY:**
 "Now we feed this image into a deep learning model—specifically, a Transformer Network. 
 
-This neural network doesn't know what English is. But it has been trained on millions of hours of audio. It scans the spectrogram image, recognizing visual patterns that correspond to human phonemes—the building blocks of speech. 
+This neural network doesn't know what English is. But it has been trained on millions of hours of audio. It scans the spectrogram image, recognizing visual patterns that correspond to human phonemes—the basic building blocks of speech. 
 
 It calculates the mathematical probabilities of which sounds are being spoken at any given millisecond."
 
-**[Action: Click 'Continue']**
+**WHAT YOU DO:**
+Click **"Process Language"**.
 
 ---
 
-## Stage 9: Language Understanding
+## STAGE 9: Language Understanding
+**WHAT YOU DO:** 
+Let the words of your actual spoken sentence stream in one by one.
+
+**WHAT YOU SAY:**
 "But the model doesn’t just rely on sound. It relies on context. 
 
 Notice how the words stream in. Sometimes the acoustic model isn't sure if I said the word 'two' (the number), 'to' (the preposition), or 'too' (also). 
 
 But by looking at the surrounding words, the Language Model understands the grammar and the context, correcting itself dynamically to form a perfect sentence."
 
-**[Action: Wait for the text to finish streaming, then click 'See Final Result']**
+**WHAT YOU DO:**
+Wait for the text to finish streaming, then click **"See Final Result"**.
 
 ---
 
-## Stage 10: Final Result & Outro
+## STAGE 10: Final Result
+**WHAT YOU DO:** 
+Look at the big, capitalized sentence on the screen.
+
+**WHAT YOU SAY:**
 "And here we are. The final result.
 
-*(Read the final result on screen, e.g., "Hello everyone, welcome to the presentation.")*
+*(Read the final result on screen out loud, e.g., "Hello everyone, welcome to the presentation.")*
 
 From a raw physical vibration in the air, converted to digital dots, mapped to the frequency domain, transformed into a visual spectrogram, and finally decoded by a Transformer AI... we have our final text. 
 
