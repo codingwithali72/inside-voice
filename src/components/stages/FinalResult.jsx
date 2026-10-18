@@ -6,6 +6,11 @@ export default function FinalResult({ onNext, reset, audioData, transcribedText 
     if (audioData && audioData.url) {
       const audio = new Audio(audioData.url);
       audio.play().catch(e => console.warn("Audio playback issue:", e));
+    } else if ('speechSynthesis' in window && finalSentence) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(finalSentence);
+      utterance.lang = 'en-IN';
+      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -73,15 +78,13 @@ export default function FinalResult({ onNext, reset, audioData, transcribedText 
         </motion.div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          {audioData && (
-            <button
-              className="btn-secondary"
-              onClick={playAudio}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              <Play size={18} /> Play Spoken Audio
-            </button>
-          )}
+          <button
+            className="btn-secondary"
+            onClick={playAudio}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Volume2 size={18} /> Play Voice Text
+          </button>
           <button
             className="btn-primary"
             onClick={onNext}

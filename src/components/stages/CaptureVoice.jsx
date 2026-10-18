@@ -1,24 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Check, Volume2, Globe } from 'lucide-react';
+import { Mic, Square, Check, Globe } from 'lucide-react';
 
 export default function CaptureVoice({ onNext, setAudioData, setTranscribedText, transcribedText }) {
   const [isRecording, setIsRecording] = useState(false);
   const [spokenText, setSpokenText] = useState(transcribedText || '');
   const [hasRecorded, setHasRecorded] = useState(Boolean(transcribedText));
-  const [selectedLang, setSelectedLang] = useState('en-IN'); // en-IN recognizes Indian English & names like Ali at conversational volume!
-  const [micVolume, setMicVolume] = useState(0);
+  const [selectedLang, setSelectedLang] = useState('en-IN');
+  const [speechError, setSpeechError] = useState('');
 
-  const recognitionInstanceRef = useRef(null);
-  const isRecordingActiveRef = useRef(false);
-  const transcriptBufferRef = useRef('');
-  
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const isRecordingRef = useRef(false);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const streamRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -27,197 +20,145 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   }, []);
 
   const stopEverything = () => {
-    isRecordingActiveRef.current = false;
-    if (recognitionInstanceRef.current) {
-      try { recognitionInstanceRef.current.abort(); } catch (e) {}
-      recognitionInstanceRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try { mediaRecorderRef.current.stop(); } catch (e) {}
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+    isRecordingRef.current = false;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch (e) {}
+      recognitionRef.current = null;
     }
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try { audioContextRef.current.close(); } catch (e) {}
-    }
   };
 
-  // Creates a FRESH SpeechRecognition instance each time so Chrome NEVER stops listening after a pause!
-  const spawnRecognitionSession = () => {
-    if (!isRecordingActiveRef.current) return;
+  const startRecording = () => {
+    stopEverything();
+    setSpeechError('');
+    setSpokenText('');
+    setTranscribedText('');
+    isRecordingRef.current = true;
+    setIsRecording(true);
+    setHasRecorded(false);
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      setSpeechError('Speech recognition is not supported in this browser. Please use Chrome/Edge or type directly.');
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      return;
+    }
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = true; // Stays active without terminating
+      recognition.interimResults = true; // Syllable-by-syllable live words
       recognition.lang = selectedLang;
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
-        let interim = '';
-        let finalizedThisSession = '';
-
+        let full = '';
         for (let i = 0; i < event.results.length; i++) {
-          const res = event.results[i];
-          if (res.isFinal) {
-            finalizedThisSession += res[0].transcript + ' ';
-          } else {
-            interim += res[0].transcript;
-          }
+          full += event.results[i][0].transcript;
         }
-
-        // Combine previously committed text with newly finalized words and current interim speech
-        const combined = (transcriptBufferRef.current + ' ' + finalizedThisSession + ' ' + interim).replace(/\s+/g, ' ').trim();
-        if (combined) {
-          setSpokenText(combined);
-          setTranscribedText(combined);
+        if (full) {
+          setSpokenText(full);
+          setTranscribedText(full);
         }
       };
 
       recognition.onerror = (e) => {
-        console.warn('Speech notice:', e.error);
+        console.warn('SpeechRecognition notice:', e.error);
+        if (e.error === 'not-allowed') {
+          setSpeechError('Microphone permission blocked. Please allow mic access in your browser address bar.');
+        } else if (e.error === 'network') {
+          setSpeechError('Network error reaching speech recognition service. Please check internet connection.');
+        }
       };
 
       recognition.onend = () => {
-        // If Chrome stops after a pause or silence, commit what we had and IMMEDIATELY spawn a fresh instance
-        if (isRecordingActiveRef.current) {
-          // Commit finalized words into persistent buffer
-          transcriptBufferRef.current = (spokenText || transcriptBufferRef.current).trim();
-          // Spawn fresh instance to continue listening without stopping!
-          setTimeout(() => {
-            if (isRecordingActiveRef.current) {
-              spawnRecognitionSession();
-            }
-          }, 50);
+        // If Chrome pauses but user didn't click stop, keep listening
+        if (isRecordingRef.current) {
+          try {
+            recognition.start();
+          } catch (err) {}
         }
       };
 
-      recognitionInstanceRef.current = recognition;
+      recognitionRef.current = recognition;
       recognition.start();
+      drawAnimatedWave();
     } catch (err) {
-      console.warn('Speech spawn error:', err);
-    }
-  };
-
-  const startRecording = async () => {
-    stopEverything();
-    setSpokenText('');
-    setTranscribedText('');
-    transcriptBufferRef.current = '';
-    audioChunksRef.current = [];
-    isRecordingActiveRef.current = true;
-    setIsRecording(true);
-    setHasRecorded(false);
-
-    // 1. Launch Speech Recognition with fresh instance
-    spawnRecognitionSession();
-
-    // 2. Launch waveform & audio recorder without competing for exclusive mic lock
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          autoGainControl: true, // Amplifies soft voices automatically
-          echoCancellation: false,
-          noiseSuppression: false
-        }
-      });
-      streamRef.current = stream;
-
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        setAudioData({ blob, url });
-        stream.getTracks().forEach(t => t.stop());
-      };
-      mediaRecorder.start();
-
-      drawWave();
-    } catch (err) {
-      console.warn('Waveform stream notice:', err);
+      console.error('Recognition error:', err);
+      setSpeechError('Could not start speech recognition: ' + err.message);
+      setIsRecording(false);
+      isRecordingRef.current = false;
     }
   };
 
   const stopRecording = () => {
-    isRecordingActiveRef.current = false;
+    isRecordingRef.current = false;
     setIsRecording(false);
     setHasRecorded(true);
 
-    if (recognitionInstanceRef.current) {
-      try { recognitionInstanceRef.current.stop(); } catch (e) {}
-      recognitionInstanceRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try { mediaRecorderRef.current.stop(); } catch (e) {}
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
     }
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
   };
 
-  const drawWave = () => {
-    if (!canvasRef.current || !analyserRef.current) return;
+  // Organic, glowing voice visualizer with zero hardware conflicts
+  const drawAnimatedWave = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
-    const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+    let phase = 0;
 
     const render = () => {
-      if (!analyserRef.current) return;
-      analyserRef.current.getByteTimeDomainData(data);
-
-      let sum = 0;
-      for (let i = 0; i < data.length; i++) {
-        const diff = (data[i] - 128) / 128;
-        sum += diff * diff;
-      }
-      const vol = Math.min(100, Math.round(Math.sqrt(sum / data.length) * 350));
-      setMicVolume(vol);
-
-      ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
+      phase += 0.08;
+      ctx.fillStyle = 'rgba(5, 5, 5, 0.35)';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#32ADE6';
+      // Center guide line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      const slice = width / data.length;
-      let x = 0;
-      for (let i = 0; i < data.length; i++) {
-        const v = data[i] / 128.0;
-        const y = (v * height) / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-        x += slice;
-      }
+      ctx.moveTo(0, height / 2);
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      if (isRecordingActiveRef.current) {
+      // Glowing voice harmonic layers
+      const layers = [
+        { color: 'rgba(10, 132, 255, 0.35)', amp: 30, freq: 0.02, speed: 1.0 },
+        { color: 'rgba(50, 173, 230, 0.6)', amp: 42, freq: 0.03, speed: 1.4 },
+        { color: '#32ADE6', amp: 24, freq: 0.045, speed: 1.8 }
+      ];
+
+      layers.forEach((l) => {
+        ctx.beginPath();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = l.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#0A84FF';
+
+        for (let x = 0; x < width; x++) {
+          const envelope = Math.sin((x / width) * Math.PI);
+          const y = height / 2 + Math.sin(x * l.freq + phase * l.speed) * l.amp * envelope;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+
+      if (isRecordingRef.current) {
         animationRef.current = requestAnimationFrame(render);
       }
     };
@@ -237,13 +178,13 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       <div className="glass-card" style={{ padding: '3rem 2.5rem', width: '100%', maxWidth: '820px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '0.75rem' }}>Stage 1: Capturing Your Voice</h2>
         <p style={{ marginBottom: '1.25rem', color: 'var(--text-secondary)' }}>
-          Click start and speak naturally. It will capture every word continuously.
+          Click start and speak naturally. Every word you say will appear live below.
         </p>
 
-        {/* Accent Selector (Default en-IN recognizes Indian English & names like Ali instantly) */}
+        {/* Accent / Dialect Model Selector */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '1.5rem' }}>
           <Globe size={15} color="var(--accent-cyan)" />
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Voice Model:</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Recognition Model:</span>
           <select
             value={selectedLang}
             onChange={(e) => setSelectedLang(e.target.value)}
@@ -265,6 +206,12 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           </select>
         </div>
 
+        {speechError && (
+          <div style={{ padding: '0.75rem 1rem', background: 'rgba(255, 69, 58, 0.15)', border: '1px solid rgba(255, 69, 58, 0.4)', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', color: '#ff453a' }}>
+            {speechError}
+          </div>
+        )}
+
         {/* Waveform Canvas */}
         <canvas
           ref={canvasRef}
@@ -281,18 +228,8 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           }}
         />
 
-        {/* Buttons & Live Volume Feedback */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-          {isRecording && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', maxWidth: '320px' }}>
-              <Volume2 size={16} color="var(--accent-cyan)" />
-              <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.max(5, micVolume)}%`, background: 'var(--accent-cyan)', transition: 'width 0.1s' }} />
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)' }}>Hearing you</span>
-            </div>
-          )}
-
+        {/* Start / Stop Button */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
           {!isRecording ? (
             <button
               className="btn-primary"
@@ -341,7 +278,6 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
             onChange={(e) => {
               setSpokenText(e.target.value);
               setTranscribedText(e.target.value);
-              transcriptBufferRef.current = e.target.value;
             }}
             placeholder={isRecording ? "Listening to your words in real time..." : "Your spoken words will appear here. You can also edit or type directly."}
             rows={3}
