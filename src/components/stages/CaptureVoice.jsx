@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Check, RotateCcw } from 'lucide-react';
+import { Mic, Square, Check } from 'lucide-react';
 
 export default function CaptureVoice({ onNext, setAudioData, setTranscribedText, transcribedText }) {
   const [isRecording, setIsRecording] = useState(false);
   const [spokenText, setSpokenText] = useState(transcribedText || '');
   const [hasRecorded, setHasRecorded] = useState(Boolean(transcribedText));
-  
+  const [speechNotice, setSpeechNotice] = useState('');
+
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -14,6 +15,10 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const streamRef = useRef(null);
+  
+  // Persistent speech accumulator across continuous restarts
+  const accumulatedTextRef = useRef(transcribedText || '');
+  const isRecordingActiveRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -22,8 +27,9 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   }, []);
 
   const stopEverything = () => {
+    isRecordingActiveRef.current = false;
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
+      try { recognitionRef.current.abort(); } catch (e) {}
     }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop(); } catch (e) {}
@@ -39,53 +45,92 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
     }
   };
 
-  const startRecording = async () => {
-    setSpokenText('');
-    setTranscribedText('');
-    audioChunksRef.current = [];
-    setIsRecording(true);
-    setHasRecorded(false);
-
-    // 1. Web Speech API - Voice to Text
+  const startVoiceRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
+    if (!SpeechRecognition) {
+      setSpeechNotice('Speech recognition not directly supported by this browser. You can type or use your keyboard microphone below.');
+      return;
+    }
+
+    try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      
+      // continuous = false gives Google's ultra-sensitive, low-latency Voice Search mode (~100ms)
+      // rather than the slow, high-threshold dictation mode!
+      recognition.continuous = false;
       recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
 
       recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+        let interim = '';
+        let finalSegment = '';
+
+        for (let i = 0; i < event.results.length; ++i) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalSegment += res[0].transcript + ' ';
+          } else {
+            interim += res[0].transcript;
+          }
         }
-        if (transcript) {
-          setSpokenText(transcript);
-          setTranscribedText(transcript);
+
+        if (finalSegment) {
+          accumulatedTextRef.current = (accumulatedTextRef.current + ' ' + finalSegment).replace(/\s+/g, ' ').trim();
+        }
+
+        const currentDisplay = (accumulatedTextRef.current + ' ' + interim).replace(/\s+/g, ' ').trim();
+        if (currentDisplay) {
+          setSpokenText(currentDisplay);
+          setTranscribedText(currentDisplay);
         }
       };
 
-      recognition.onerror = (event) => {
-        console.warn('Speech error:', event.error);
+      recognition.onerror = (e) => {
+        console.log('SpeechRecognition notice:', e.error);
+        if (e.error === 'not-allowed') {
+          setSpeechNotice('Microphone permission blocked. Please allow mic access in your browser address bar.');
+        }
       };
 
       recognition.onend = () => {
-        // If user is still recording, keep it active
-        if (recognitionRef.current === recognition && isRecording) {
-          try { recognition.start(); } catch (e) {}
+        // Seamlessly restart recognition loop while user is still recording
+        if (isRecordingActiveRef.current) {
+          try {
+            recognition.start();
+          } catch (err) {}
         }
       };
 
       recognitionRef.current = recognition;
-      try {
-        recognition.start();
-      } catch (err) {
-        console.warn('Recognition start error:', err);
-      }
+      recognition.start();
+    } catch (err) {
+      console.warn('Voice start notice:', err);
     }
+  };
 
-    // 2. Microphone audio stream & Waveform
+  const startRecording = async () => {
+    stopEverything();
+    setSpeechNotice('');
+    setSpokenText('');
+    setTranscribedText('');
+    accumulatedTextRef.current = '';
+    audioChunksRef.current = [];
+    isRecordingActiveRef.current = true;
+    setIsRecording(true);
+    setHasRecorded(false);
+
+    // 1. Start Voice Recognition immediately
+    startVoiceRecognition();
+
+    // 2. Start hardware audio stream & visualizer
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl: true,
+          echoCancellation: true,
+          noiseSuppression: false
+        }
+      });
       streamRef.current = stream;
 
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -104,7 +149,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
       };
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
@@ -116,11 +161,12 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
       drawWave();
     } catch (err) {
-      console.warn('Mic audio stream notice:', err);
+      console.warn('Media stream note:', err);
     }
   };
 
   const stopRecording = () => {
+    isRecordingActiveRef.current = false;
     setIsRecording(false);
     setHasRecorded(true);
 
@@ -165,7 +211,9 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      animationRef.current = requestAnimationFrame(render);
+      if (isRecordingActiveRef.current) {
+        animationRef.current = requestAnimationFrame(render);
+      }
     };
     render();
   };
@@ -181,10 +229,16 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   return (
     <div className="stage-container">
       <div className="glass-card" style={{ padding: '3rem 2.5rem', width: '100%', maxWidth: '820px', textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '1rem' }}>Stage 1: Capturing Your Voice</h2>
-        <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
-          Click start and speak anything into your microphone.
+        <h2 style={{ marginBottom: '0.75rem' }}>Stage 1: Capturing Your Voice</h2>
+        <p style={{ marginBottom: '1.75rem', color: 'var(--text-secondary)' }}>
+          Click start and speak naturally into your device's microphone.
         </p>
+
+        {speechNotice && (
+          <div style={{ padding: '0.75rem 1rem', background: 'rgba(255, 149, 0, 0.15)', border: '1px solid rgba(255, 149, 0, 0.4)', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', color: '#ff9f0a' }}>
+            {speechNotice}
+          </div>
+        )}
 
         {/* Waveform Canvas */}
         <canvas
@@ -202,7 +256,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           }}
         />
 
-        {/* Buttons: Start / Stop */}
+        {/* Start / Stop Button */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginBottom: '2rem' }}>
           {!isRecording ? (
             <button
@@ -231,7 +285,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           )}
         </div>
 
-        {/* Live / Captured Text Box */}
+        {/* Real-time Voice to Text Display */}
         <div style={{
           width: '100%',
           maxWidth: '650px',
@@ -242,8 +296,9 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           borderRadius: '14px',
           textAlign: 'left'
         }}>
-          <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {isRecording ? '🔴 Listening... (speak now)' : 'What was heard:'}
+          <div style={{ fontSize: '0.85rem', color: isRecording ? '#30d158' : 'var(--accent-cyan)', fontWeight: 600, marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {isRecording && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#30d158', display: 'inline-block', animation: 'pulse 1s infinite' }} />}
+            {isRecording ? 'Listening live (Speak naturally)...' : 'Captured Text:'}
           </div>
 
           <textarea
@@ -251,6 +306,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
             onChange={(e) => {
               setSpokenText(e.target.value);
               setTranscribedText(e.target.value);
+              accumulatedTextRef.current = e.target.value;
             }}
             placeholder={isRecording ? "Listening to your words in real time..." : "Your spoken words will appear here. You can also edit or type directly."}
             rows={3}
