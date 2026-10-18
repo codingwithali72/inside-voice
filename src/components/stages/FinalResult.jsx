@@ -9,9 +9,9 @@ export default function FinalResult({ onNext, reset, audioData, transcribedText 
     }
   };
 
-  const rawSentence = (transcribedText || '').trim() || "Understand what I said";
+  const rawSentence = (transcribedText || '').trim();
   // Format with capitalized first letter
-  const finalSentence = rawSentence.charAt(0).toUpperCase() + rawSentence.slice(1);
+  const finalSentence = rawSentence ? (rawSentence.charAt(0).toUpperCase() + rawSentence.slice(1)) : "Voice recognized";
 
   return (
     <div className="stage-container">

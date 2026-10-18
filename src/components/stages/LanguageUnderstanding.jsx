@@ -6,8 +6,8 @@ export default function LanguageUnderstanding({ onNext, transcribedText }) {
   const [textIndex, setTextIndex] = useState(0);
   
   // Safely parse words from the actual user's speech
-  const cleanText = (transcribedText || '').trim() || "Understand what I said";
-  const words = cleanText.split(/\s+/).filter(Boolean);
+  const cleanText = (transcribedText || '').trim();
+  const words = cleanText ? cleanText.split(/\s+/).filter(Boolean) : ["Voice", "input"];
   
   const progression = ["Listening & decoding context..."];
   let currentString = "";
