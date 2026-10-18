@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Gamepad2 } from 'lucide-react';
 import Home from './components/Home';
 import CaptureVoice from './components/stages/CaptureVoice';
 import DigitalAudio from './components/stages/DigitalAudio';
@@ -14,8 +15,10 @@ import FinalResult from './components/stages/FinalResult';
 import InteractiveTimeline from './components/InteractiveTimeline';
 import ProgressTracker from './components/ProgressTracker';
 import BackgroundEffect from './components/BackgroundEffect';
+import VoiceGame from './components/VoiceGame';
 
 function App() {
+  const [viewMode, setViewMode] = useState('pipeline'); // 'pipeline' | 'game'
   const [currentStage, setCurrentStage] = useState(0);
   const [audioData, setAudioData] = useState(null); 
   const [transcribedText, setTranscribedText] = useState(""); 
@@ -76,22 +79,62 @@ function App() {
     <div className="app-container">
       <BackgroundEffect />
       
-      {currentStage > 0 && currentStage < 11 && (
-        <ProgressTracker currentStage={currentStage} />
+      {viewMode === 'game' ? (
+        <VoiceGame onBack={() => setViewMode('pipeline')} />
+      ) : (
+        <>
+          {/* Top-Right Navigation Button to Voice Control Game */}
+          <div style={{ position: 'fixed', top: '18px', right: '22px', zIndex: 100 }}>
+            <button
+              onClick={() => setViewMode('game')}
+              style={{
+                background: 'linear-gradient(135deg, rgba(10, 132, 255, 0.25), rgba(50, 173, 230, 0.25))',
+                border: '1px solid var(--accent-cyan)',
+                borderRadius: '24px',
+                color: '#fff',
+                padding: '9px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                backdropFilter: 'blur(16px)',
+                boxShadow: '0 4px 18px rgba(10, 132, 255, 0.28)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 22px rgba(50, 173, 230, 0.4)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 18px rgba(10, 132, 255, 0.28)';
+              }}
+            >
+              <Gamepad2 size={18} color="var(--accent-cyan)" />
+              Play Voice Game
+            </button>
+          </div>
+
+          {currentStage > 0 && currentStage < 11 && (
+            <ProgressTracker currentStage={currentStage} />
+          )}
+          
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStage}
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 1.02 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              style={{ width: '100%', height: '100%' }}
+            >
+              {renderStage()}
+            </motion.div>
+          </AnimatePresence>
+        </>
       )}
-      
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStage}
-          initial={{ opacity: 0, y: 30, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -30, scale: 1.02 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          style={{ width: '100%', height: '100%' }}
-        >
-          {renderStage()}
-        </motion.div>
-      </AnimatePresence>
     </div>
   );
 }
