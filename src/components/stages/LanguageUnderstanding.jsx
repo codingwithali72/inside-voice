@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, Sparkles } from 'lucide-react';
 
 export default function LanguageUnderstanding({ onNext, transcribedText }) {
   const [textIndex, setTextIndex] = useState(0);
   
-  // Create a progression array based on the actual transcribed text
-  const words = transcribedText ? transcribedText.split(' ') : ["Hello", "Everyone", "Welcome", "to", "Inside", "Voice"];
-  const progression = ["Listening..."];
+  // Safely parse words from the actual user's speech
+  const cleanText = (transcribedText || '').trim() || "Understand what I said";
+  const words = cleanText.split(/\s+/).filter(Boolean);
   
+  const progression = ["Listening & decoding context..."];
   let currentString = "";
   for (let i = 0; i < words.length; i++) {
     currentString += (i === 0 ? "" : " ") + words[i];
@@ -18,23 +20,24 @@ export default function LanguageUnderstanding({ onNext, transcribedText }) {
     if (textIndex < progression.length - 1) {
       const timer = setTimeout(() => {
         setTextIndex(prev => prev + 1);
-      }, textIndex === 0 ? 1500 : 600); // slightly faster reveal
+      }, textIndex === 0 ? 900 : 400);
       return () => clearTimeout(timer);
     }
   }, [textIndex, progression.length]);
 
   return (
     <div className="stage-container">
-      <div className="glass-card" style={{ padding: '3rem', width: '100%', maxWidth: '800px', textAlign: 'center' }}>
+      <div className="glass-card" style={{ padding: '3rem', width: '100%', maxWidth: '820px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '1rem' }}>Stage 8: Language Understanding</h2>
-        <p style={{ marginBottom: '3rem', color: 'var(--text-secondary)' }}>
-          The model predicts words using both sound and context.<br/>
-          By looking at surrounding words, it corrects errors and improves recognition accuracy dynamically.
+        <p style={{ marginBottom: '2.5rem', color: 'var(--text-secondary)' }}>
+          The language model evaluates surrounding tokens to disambiguate homophones and ensure grammatical coherence in your phrase.
         </p>
 
+        {/* Real-time Word Stream */}
         <div style={{
-          minHeight: '120px',
+          minHeight: '130px',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           background: 'var(--bg-tertiary)',
@@ -42,7 +45,8 @@ export default function LanguageUnderstanding({ onNext, transcribedText }) {
           border: '1px solid var(--glass-border)',
           margin: '2rem 0',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          padding: '1.5rem'
         }}>
           {/* Subtle background pulse */}
           <motion.div
@@ -63,15 +67,21 @@ export default function LanguageUnderstanding({ onNext, transcribedText }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              style={{ fontSize: '1.5rem', fontWeight: 500, letterSpacing: '-0.02em', padding: '0 20px' }}
+              transition={{ duration: 0.25 }}
+              style={{
+                fontSize: '1.6rem',
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
+                padding: '0 20px',
+                color: textIndex === 0 ? 'var(--text-secondary)' : '#ffffff'
+              }}
             >
               {progression[textIndex]}
               {textIndex < progression.length - 1 && (
                 <motion.span
                   animate={{ opacity: [1, 0, 1] }}
                   transition={{ repeat: Infinity, duration: 0.8 }}
-                  style={{ display: 'inline-block', marginLeft: '5px', color: 'var(--accent-cyan)' }}
+                  style={{ display: 'inline-block', marginLeft: '6px', color: 'var(--accent-cyan)' }}
                 >
                   |
                 </motion.span>
@@ -80,9 +90,44 @@ export default function LanguageUnderstanding({ onNext, transcribedText }) {
           </AnimatePresence>
         </div>
 
+        {/* Dynamic Contextual Token Badges */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
+          {words.map((word, idx) => {
+            const isProcessed = textIndex > idx;
+            return (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{
+                  opacity: isProcessed ? 1 : 0.4,
+                  scale: isProcessed ? 1 : 0.95,
+                  borderColor: isProcessed ? 'var(--accent-cyan)' : 'var(--glass-border)',
+                  background: isProcessed ? 'rgba(50, 173, 230, 0.15)' : 'var(--glass-bg)'
+                }}
+                transition={{ duration: 0.3 }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  border: '1px solid var(--glass-border)',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: isProcessed ? '#fff' : 'var(--text-secondary)'
+                }}
+              >
+                {isProcessed && <CheckCircle2 size={13} color="var(--accent-cyan)" />}
+                <span>{word}</span>
+              </motion.div>
+            );
+          })}
+        </div>
+
         {textIndex === progression.length - 1 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-            <button className="btn-primary" onClick={onNext} style={{ marginTop: '1rem' }}>See Final Result</button>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+            <button className="btn-primary" onClick={onNext} style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={18} /> See Final Result
+            </button>
           </motion.div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Home from './components/Home';
 import CaptureVoice from './components/stages/CaptureVoice';
@@ -26,22 +26,51 @@ function App() {
     setAudioData(null);
     setTranscribedText("");
   };
-  
-  // Stages configuration
-  const stages = [
-    <Home onNext={nextStage} />,
-    <CaptureVoice onNext={nextStage} setAudioData={setAudioData} setTranscribedText={setTranscribedText} />,
-    <DigitalAudio onNext={nextStage} />,
-    <TimeDomain onNext={nextStage} audioData={audioData} />,
-    <FrequencyDomain onNext={nextStage} />,
-    <FrameSplitting onNext={nextStage} />,
-    <STFT onNext={nextStage} />,
-    <LogMelSpectrogram onNext={nextStage} />,
-    <AIModel onNext={nextStage} />,
-    <LanguageUnderstanding onNext={nextStage} transcribedText={transcribedText} />,
-    <FinalResult onNext={nextStage} reset={resetJourney} audioData={audioData} transcribedText={transcribedText} />,
-    <InteractiveTimeline reset={resetJourney} />
-  ];
+
+  const renderStage = () => {
+    switch (currentStage) {
+      case 0:
+        return <Home onNext={nextStage} />;
+      case 1:
+        return (
+          <CaptureVoice
+            onNext={nextStage}
+            setAudioData={setAudioData}
+            setTranscribedText={setTranscribedText}
+            transcribedText={transcribedText}
+          />
+        );
+      case 2:
+        return <DigitalAudio onNext={nextStage} />;
+      case 3:
+        return <TimeDomain onNext={nextStage} audioData={audioData} />;
+      case 4:
+        return <FrequencyDomain onNext={nextStage} />;
+      case 5:
+        return <FrameSplitting onNext={nextStage} />;
+      case 6:
+        return <STFT onNext={nextStage} />;
+      case 7:
+        return <LogMelSpectrogram onNext={nextStage} />;
+      case 8:
+        return <AIModel onNext={nextStage} transcribedText={transcribedText} />;
+      case 9:
+        return <LanguageUnderstanding onNext={nextStage} transcribedText={transcribedText} />;
+      case 10:
+        return (
+          <FinalResult
+            onNext={nextStage}
+            reset={resetJourney}
+            audioData={audioData}
+            transcribedText={transcribedText}
+          />
+        );
+      case 11:
+        return <InteractiveTimeline reset={resetJourney} />;
+      default:
+        return <Home onNext={nextStage} />;
+    }
+  };
 
   return (
     <div className="app-container">
@@ -60,7 +89,7 @@ function App() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           style={{ width: '100%', height: '100%' }}
         >
-          {stages[currentStage]}
+          {renderStage()}
         </motion.div>
       </AnimatePresence>
     </div>

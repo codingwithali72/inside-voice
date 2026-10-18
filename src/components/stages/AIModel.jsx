@@ -1,19 +1,29 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Brain, ArrowRight } from 'lucide-react';
 
-export default function AIModel({ onNext }) {
+export default function AIModel({ onNext, transcribedText }) {
+  const cleanText = (transcribedText || '').trim() || "understand";
+  const words = cleanText.split(/\s+/).filter(Boolean);
+  const firstWord = (words[0] || "speech").toLowerCase();
+
+  // Generate phonemes from the first word of the user's speech
+  const chars = firstWord.replace(/[^a-z]/g, '').slice(0, 3) || 'spe';
+  const phonemes = [
+    { symbol: `/${chars[0] || 's'}/`, conf: '98%', width: '64px', color: 'var(--accent-cyan)' },
+    { symbol: `/${chars[1] || 'p'}/`, conf: '89%', width: '48px', color: 'var(--accent-blue)' },
+    { symbol: `/${chars[2] || 'i'}/`, conf: '74%', width: '32px', color: 'var(--text-secondary)' }
+  ];
+
   return (
     <div className="stage-container">
       <div className="glass-card" style={{ padding: '3rem', width: '100%', maxWidth: '900px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '1rem' }}>Stage 7: AI Speech Model</h2>
         <p style={{ marginBottom: '3rem', color: 'var(--text-secondary)' }}>
           The Log-Mel Spectrogram is sent into a trained Transformer-based Speech Recognition model.
-          The model has learned speech patterns from millions of hours of recorded audio.
-          It predicts the most likely spoken words.
+          The model scans audio patterns to predict acoustic phoneme probabilities for your spoken words.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem', margin: '3rem 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem', margin: '3rem 0', flexWrap: 'wrap' }}>
           
           {/* Input: Spectrogram Icon */}
           <motion.div
@@ -67,30 +77,22 @@ export default function AIModel({ onNext }) {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 1.5, duration: 0.8 }}
-            style={{ padding: '1.5rem', background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)', textAlign: 'left' }}
+            style={{ padding: '1.5rem', background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)', textAlign: 'left', minWidth: '170px' }}
           >
             <div style={{ fontSize: '0.8rem', marginBottom: '10px', color: 'var(--text-secondary)' }}>Phoneme Probabilities</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-              <span style={{ width: '20px' }}>/h/</span>
-              <div style={{ width: '60px', height: '6px', background: 'var(--accent-cyan)', borderRadius: '3px' }}></div>
-              <span style={{ fontSize: '0.7rem' }}>98%</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-              <span style={{ width: '20px' }}>/e/</span>
-              <div style={{ width: '40px', height: '6px', background: 'var(--accent-blue)', borderRadius: '3px' }}></div>
-              <span style={{ fontSize: '0.7rem' }}>65%</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ width: '20px' }}>/l/</span>
-              <div style={{ width: '10px', height: '6px', background: 'var(--text-secondary)', borderRadius: '3px' }}></div>
-              <span style={{ fontSize: '0.7rem' }}>12%</span>
-            </div>
+            {phonemes.map((ph, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: idx === phonemes.length - 1 ? 0 : '6px' }}>
+                <span style={{ width: '24px', fontFamily: 'monospace', fontWeight: 600 }}>{ph.symbol}</span>
+                <div style={{ width: ph.width, height: '6px', background: ph.color, borderRadius: '3px' }}></div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{ph.conf}</span>
+              </div>
+            ))}
           </motion.div>
 
         </div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }}>
-          <button className="btn-primary" onClick={onNext} style={{ marginTop: '2rem' }}>Continue</button>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.8 }}>
+          <button className="btn-primary" onClick={onNext} style={{ marginTop: '1.5rem' }}>Continue</button>
         </motion.div>
       </div>
     </div>
