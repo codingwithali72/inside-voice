@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Check, Edit3, RotateCcw, Volume2, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import { Mic, Square, Check, Edit3, RotateCcw, Volume2, Sparkles, AlertCircle, Loader2, Globe } from 'lucide-react';
 
 export default function CaptureVoice({ onNext, setAudioData, setTranscribedText, transcribedText }) {
   const [recordingStatus, setRecordingStatus] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'finished' | 'no_speech'
@@ -12,6 +12,17 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   const [isEditing, setIsEditing] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
   const [micVolume, setMicVolume] = useState(0);
+  const [isMicReady, setIsMicReady] = useState(false);
+
+  // Accent & Language Selection (Default to Indian English if in India, else US English)
+  const [selectedLang, setSelectedLang] = useState(() => {
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      if (navigator.language.includes('IN')) return 'en-IN';
+      if (navigator.language.includes('GB')) return 'en-GB';
+    }
+    // Default to en-IN as primary, with easy switcher
+    return 'en-IN';
+  });
 
   const mediaRecorder = useRef(null);
   const audioChunks = useRef([]);
@@ -23,6 +34,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   const recognitionRef = useRef(null);
   const isRecordingRef = useRef(false);
   const accumulatedTranscriptRef = useRef('');
+  const finalTranscriptsRef = useRef('');
   const audioStreamRef = useRef(null);
   const stopResolverRef = useRef(null);
 
@@ -55,7 +67,9 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
     setErrorMessage('');
     setLiveTranscript('');
     setMicVolume(0);
+    setIsMicReady(false);
     accumulatedTranscriptRef.current = '';
+    finalTranscriptsRef.current = '';
     audioChunks.current = [];
     isRecordingRef.current = true;
 
@@ -66,23 +80,27 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = navigator.language || 'en-US';
+        recognition.lang = selectedLang;
         recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          setIsMicReady(true);
+        };
 
         recognition.onresult = (event) => {
           let interim = '';
-          let final = '';
 
-          for (let i = 0; i < event.results.length; ++i) {
+          // Accumulate final results and current interim segment
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
             const res = event.results[i];
             if (res.isFinal) {
-              final += res[0].transcript + ' ';
+              finalTranscriptsRef.current += res[0].transcript + ' ';
             } else {
               interim += res[0].transcript;
             }
           }
 
-          const combined = (final + interim).trim();
+          const combined = (finalTranscriptsRef.current + interim).trim();
           if (combined) {
             accumulatedTranscriptRef.current = combined;
             setLiveTranscript(combined);
@@ -96,12 +114,12 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           if (event.error === 'not-allowed') {
             setErrorMessage('Microphone access for speech recognition was blocked by the browser.');
           } else if (event.error === 'network') {
-            setErrorMessage('Browser speech recognition cloud service timed out or was blocked.');
+            setErrorMessage('Speech service timed out. Please check network or speak again.');
           }
         };
 
         recognition.onend = () => {
-          // If still recording, keep recognition going (Chrome pauses on brief silence)
+          // If still recording, quickly restart (Chrome auto-stops after silence pauses)
           if (isRecordingRef.current) {
             try {
               recognition.start();
@@ -120,17 +138,20 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       setSpeechSupported(false);
     }
 
-    // 2. Start hardware microphone capture & canvas visualizer in parallel
+    // 2. Start hardware microphone capture & high-sensitivity visualizer
     initMicrophoneStream();
   };
 
   const initMicrophoneStream = async () => {
     try {
+      // Disabling aggressive noiseSuppression and echoCancellation prevents the browser
+      // from gating out quiet speech or initial syllables!
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          channelCount: 1,
+          autoGainControl: true,
+          echoCancellation: false,
+          noiseSuppression: false
         }
       });
       audioStreamRef.current = stream;
@@ -144,10 +165,16 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       }
 
       const source = audioContext.current.createMediaStreamSource(stream);
+      
+      // Boost gain slightly for clear visual responsiveness even on soft voices
+      const gainNode = audioContext.current.createGain();
+      gainNode.gain.value = 1.8;
+      source.connect(gainNode);
+
       analyser.current = audioContext.current.createAnalyser();
       analyser.current.fftSize = 512;
-      analyser.current.smoothingTimeConstant = 0.7;
-      source.connect(analyser.current);
+      analyser.current.smoothingTimeConstant = 0.65;
+      gainNode.connect(analyser.current);
 
       const bufferLength = analyser.current.frequencyBinCount;
       dataArray.current = new Uint8Array(bufferLength);
@@ -166,6 +193,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
       mediaRecorder.current.start();
       setRecordingStatus('recording');
+      setIsMicReady(true);
       drawWaveform();
     } catch (err) {
       console.error("Error accessing mic:", err);
@@ -177,6 +205,11 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
   const stopRecording = async () => {
     isRecordingRef.current = false;
+
+    // If we already have captured text, stop immediately with zero lag!
+    const alreadyCaptured = (accumulatedTranscriptRef.current || liveTranscript || '').trim();
+    const waitTime = alreadyCaptured ? 250 : 800;
+
     setRecordingStatus('processing');
 
     // Stop MediaRecorder
@@ -184,7 +217,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       try { mediaRecorder.current.stop(); } catch (e) {}
     }
 
-    // Allow speech recognition engine up to 1200ms to flush its final phrase
+    // Gracefully finalize speech recognition
     if (recognitionRef.current) {
       await new Promise(resolve => {
         stopResolverRef.current = resolve;
@@ -193,7 +226,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
         } catch (e) {
           resolve();
         }
-        setTimeout(resolve, 1200);
+        setTimeout(resolve, waitTime);
       });
     }
 
@@ -207,7 +240,6 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       setTranscribedText(finalResult);
       setRecordingStatus('finished');
     } else {
-      // Honestly report no speech detected — DO NOT inject any fake fallback text!
       setCapturedText('');
       setRecordingStatus('no_speech');
     }
@@ -229,13 +261,14 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
       sumSquares += deviation * deviation;
     }
     const rms = Math.sqrt(sumSquares / dataArray.current.length);
-    const calculatedVolume = Math.min(100, Math.round(rms * 250));
+    // Dynamic volume scaling (responsive to normal conversational speech)
+    const calculatedVolume = Math.min(100, Math.round(rms * 350));
     setMicVolume(calculatedVolume);
 
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.28)';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw center reference guide
+    // Center reference line
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -243,10 +276,10 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
     ctx.lineTo(width, height / 2);
     ctx.stroke();
 
-    // Draw glowing speech waveform
+    // Vibrant wave with dynamic height boost
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#32ADE6';
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12;
     ctx.shadowColor = '#0A84FF';
     ctx.beginPath();
 
@@ -254,8 +287,9 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
     let x = 0;
 
     for (let i = 0; i < dataArray.current.length; i++) {
-      const v = dataArray.current[i] / 128.0;
-      const y = (v * height) / 2;
+      const v = (dataArray.current[i] - 128) / 128.0;
+      // Amplified visual wave for natural voice
+      const y = height / 2 + v * (height / 2) * 2.2;
 
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -282,8 +316,33 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
   return (
     <div className="stage-container">
       <div className="glass-card" style={{ padding: '3rem 2.5rem', width: '100%', maxWidth: '820px', textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '1rem' }}>Stage 1: Capturing Your Voice</h2>
+        <h2 style={{ marginBottom: '0.75rem' }}>Stage 1: Capturing Your Voice</h2>
         
+        {/* Accent / Dialect Selector for High-Accuracy Recognition */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '1.75rem' }}>
+          <Globe size={15} color="var(--accent-cyan)" />
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Recognition Accent:</span>
+          <select
+            value={selectedLang}
+            onChange={e => setSelectedLang(e.target.value)}
+            disabled={recordingStatus === 'recording'}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '6px',
+              color: '#fff',
+              padding: '4px 10px',
+              fontSize: '0.85rem',
+              outline: 'none',
+              cursor: recordingStatus === 'recording' ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <option value="en-IN" style={{ background: '#1c1c1e', color: '#fff' }}>🇮🇳 English (India)</option>
+            <option value="en-US" style={{ background: '#1c1c1e', color: '#fff' }}>🇺🇸 English (US)</option>
+            <option value="en-GB" style={{ background: '#1c1c1e', color: '#fff' }}>🇬🇧 English (UK)</option>
+          </select>
+        </div>
+
         {streamError ? (
           <div style={{ padding: '2rem', background: 'rgba(255, 69, 58, 0.1)', borderRadius: '12px', border: '1px solid rgba(255, 69, 58, 0.3)', margin: '2rem 0' }}>
             <p style={{ color: '#ff453a', fontWeight: 600, marginBottom: '0.5rem' }}>{errorMessage || 'Microphone access denied.'}</p>
@@ -313,8 +372,8 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
           </div>
         ) : (
           <>
-            <p style={{ marginBottom: '2rem' }}>
-              Speak any phrase into your microphone. Your actual spoken words will be tracked through the entire AI speech recognition pipeline.
+            <p style={{ marginBottom: '1.75rem' }}>
+              Speak naturally at normal conversational volume. Your exact words will be tracked through the entire AI pipeline.
             </p>
             
             {/* Waveform Canvas */}
@@ -335,7 +394,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
             {/* IDLE STATE */}
             {recordingStatus === 'idle' && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
                 <button
                   className="btn-primary"
                   onClick={startRecording}
@@ -350,7 +409,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
                   <Mic size={22} /> Start Recording
                 </button>
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  Click, then speak into your microphone in your natural voice.
+                  Speak at normal volume — no need to shout!
                 </span>
               </div>
             )}
@@ -359,22 +418,22 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
             {recordingStatus === 'recording' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 
-                {/* Audio Level Indicator */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.25rem', width: '100%', maxWidth: '400px' }}>
+                {/* Audio Level & Mic Ready Indicator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.25rem', width: '100%', maxWidth: '420px' }}>
                   <Volume2 size={18} color="var(--accent-cyan)" />
                   <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
-                        width: `${micVolume}%`,
-                        background: micVolume > 60 ? 'var(--accent-cyan)' : 'var(--accent-blue)',
-                        transition: 'width 0.1s ease',
+                        width: `${Math.max(8, micVolume)}%`,
+                        background: micVolume > 20 ? 'var(--accent-cyan)' : 'var(--accent-blue)',
+                        transition: 'width 0.08s ease',
                         boxShadow: '0 0 10px var(--accent-cyan-glow)'
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', minWidth: '40px' }}>
-                    {micVolume > 5 ? 'Active' : 'Listening'}
+                  <span style={{ fontSize: '0.8rem', color: micVolume > 15 ? 'var(--accent-cyan)' : 'var(--text-secondary)', minWidth: '70px', textAlign: 'right' }}>
+                    {micVolume > 15 ? 'Receiving' : 'Listening...'}
                   </span>
                 </div>
 
@@ -395,13 +454,13 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
                   boxShadow: '0 4px 20px rgba(10, 132, 255, 0.15)'
                 }}>
                   {liveTranscript ? (
-                    <span style={{ fontSize: '1.25rem', color: '#ffffff', fontWeight: 600 }}>
+                    <span style={{ fontSize: '1.3rem', color: '#ffffff', fontWeight: 600 }}>
                       "{liveTranscript}"
                     </span>
                   ) : (
-                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff453a', display: 'inline-block', animation: 'pulse 1s infinite' }} />
-                      Listening to your voice... Speak now!
+                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#30d158', display: 'inline-block', animation: 'pulse 1s infinite' }} />
+                      Microphone active — start speaking naturally!
                     </span>
                   )}
                 </div>
@@ -427,13 +486,10 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
             {/* PROCESSING STATE */}
             {recordingStatus === 'processing' && (
-              <div style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                <Loader2 size={36} className="animate-spin" color="var(--accent-cyan)" />
-                <div style={{ fontSize: '1.15rem', fontWeight: 500, color: '#fff' }}>
+              <div style={{ padding: '1.5rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <Loader2 size={32} className="animate-spin" color="var(--accent-cyan)" />
+                <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#fff' }}>
                   Finalizing speech recognition...
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Decoding acoustic tokens from your audio
                 </div>
               </div>
             )}
@@ -454,7 +510,7 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
                   <AlertCircle size={22} /> No Clear Speech Detected
                 </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '1.5rem' }}>
-                  The microphone did not register any spoken words. Please speak louder, closer to your microphone, or enter what you said:
+                  The microphone did not register clear words. Click below to try again, or enter your phrase:
                 </p>
 
                 <input
