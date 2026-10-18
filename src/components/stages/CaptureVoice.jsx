@@ -1,6 +1,59 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Check, Globe } from 'lucide-react';
 
+// Helper to merge speech chunks without repeating phrases (fixes Android Chrome concatenation bug)
+function cleanSpeechStream(prev, next) {
+  prev = (prev || '').trim();
+  next = (next || '').trim();
+  if (!prev) return next;
+  if (!next) return prev;
+
+  // If next is a cumulative sentence that already starts with prev, use next
+  if (next.toLowerCase().startsWith(prev.toLowerCase())) {
+    return next;
+  }
+  // If prev already ends with next, do not duplicate
+  if (prev.toLowerCase().endsWith(next.toLowerCase())) {
+    return prev;
+  }
+
+  // Find overlapping words between the end of prev and start of next
+  const prevWords = prev.split(/\s+/);
+  const nextWords = next.split(/\s+/);
+  
+  let maxOverlap = 0;
+  for (let len = Math.min(prevWords.length, nextWords.length); len > 0; len--) {
+    const prevTail = prevWords.slice(-len).join(' ').toLowerCase();
+    const nextHead = nextWords.slice(0, len).join(' ').toLowerCase();
+    if (prevTail === nextHead) {
+      maxOverlap = len;
+      break;
+    }
+  }
+
+  if (maxOverlap > 0) {
+    return prevWords.concat(nextWords.slice(maxOverlap)).join(' ');
+  }
+
+  return prev + ' ' + next;
+}
+
+// Remove immediate duplicate words (e.g., "Hi Hi my my name name is is Ali Ali" -> "Hi my name is Ali")
+function removeConsecutiveDuplicateWords(text) {
+  if (!text) return '';
+  const words = text.trim().split(/\s+/);
+  const result = [];
+  for (let i = 0; i < words.length; i++) {
+    const current = words[i];
+    const prev = result[result.length - 1];
+    if (prev && prev.toLowerCase() === current.toLowerCase()) {
+      continue; // Skip consecutive stutter/duplicate
+    }
+    result.push(current);
+  }
+  return result.join(' ');
+}
+
 export default function CaptureVoice({ onNext, setAudioData, setTranscribedText, transcribedText }) {
   const [isRecording, setIsRecording] = useState(false);
   const [spokenText, setSpokenText] = useState(transcribedText || '');
@@ -52,19 +105,25 @@ export default function CaptureVoice({ onNext, setAudioData, setTranscribedText,
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true; // Stays active without terminating
-      recognition.interimResults = true; // Syllable-by-syllable live words
+      recognition.continuous = true;
+      recognition.interimResults = true;
       recognition.lang = selectedLang;
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
-        let full = '';
+        let combined = '';
+
         for (let i = 0; i < event.results.length; i++) {
-          full += event.results[i][0].transcript;
+          const chunk = event.results[i][0].transcript.trim();
+          if (!chunk) continue;
+          combined = cleanSpeechStream(combined, chunk);
         }
-        if (full) {
-          setSpokenText(full);
-          setTranscribedText(full);
+
+        const deduplicated = removeConsecutiveDuplicateWords(combined);
+
+        if (deduplicated) {
+          setSpokenText(deduplicated);
+          setTranscribedText(deduplicated);
         }
       };
 
